@@ -1,13 +1,16 @@
-FROM node:18-slim
+FROM node:20-bullseye-slim
 
-WORKDIR /app
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY package*.json ./
+RUN git clone https://github.com/Dr-Djibi/Serveur /api
 
-RUN npm install --production
+WORKDIR /api
 
-COPY . .
+RUN npm install
 
-EXPOSE 3000
+EXPOSE 8000
 
 CMD ["npm", "start"]
