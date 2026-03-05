@@ -67,18 +67,29 @@ async function startBot(askChatbot) {
         const isGroup = senderNumber.endsWith('@g.us');
         const author = isGroup ? (msg.key.participant || senderNumber) : senderNumber;
         const source = isGroup ? "GROUP" : "PRIVATE";
-        let text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
 
-        console.log(`\n📩 [${source}] From: ${author.split('@')[0]} | Content: ${text}`);
+        // Better text extraction from various message types
+        let text = msg.message.conversation ||
+            msg.message.extendedTextMessage?.text ||
+            msg.message.imageMessage?.caption ||
+            msg.message.videoMessage?.caption ||
+            "";
+
+        if (!text) return; // Ignore messages without text
+
+        console.log(`📩 [${source}] From: ${author.split('@')[0]} | Content: ${text}`);
 
         const prefixe = process.env.PREFIXE || "!";
-        const isCommand = text.startsWith(prefixe);
+        const isCommand = text.trim().startsWith(prefixe);
+        let commandFound = false;
 
         if (isCommand) {
-            const args = text.slice(prefixe.length).trim().split(/ +/);
+            const args = text.trim().slice(prefixe.length).trim().split(/ +/);
             const command = args.shift().toLowerCase();
+            console.log(`🔍 Command detected: ${command}`);
 
             if (command === "ping") {
+                commandFound = true;
                 const start = Date.now();
                 await sock.sendMessage(senderNumber, { text: "Calcul de la latence..." }, { quoted: msg });
                 const end = Date.now();
@@ -86,6 +97,7 @@ async function startBot(askChatbot) {
             }
 
             if (command === "menu") {
+                commandFound = true;
                 const menuText = `🌟 *MENU ${process.env.NOM_BOT || 'Menma'}* 🌟\n\n` +
                     `- *${prefixe}ping* : Vérifie la latence.\n` +
                     `- *${prefixe}chatbot on* : Active l'IA partout.\n` +
@@ -97,6 +109,7 @@ async function startBot(askChatbot) {
             }
 
             if (command === "chatbot") {
+                commandFound = true;
                 const sub = args[0]?.toLowerCase();
                 if (["on", "off", "pm", "gc"].includes(sub)) {
                     chatbotMode = sub;
@@ -105,6 +118,9 @@ async function startBot(askChatbot) {
                 return await sock.sendMessage(senderNumber, { text: `Usage: ${prefixe}chatbot [on|off|pm|gc]` }, { quoted: msg });
             }
         }
+
+        // Only proceed to AI if it was NOT a recognized command
+        if (commandFound) return;
 
         // Check if we should respond with AI
         let shouldRespond = false;
