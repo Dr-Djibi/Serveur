@@ -1,16 +1,20 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require("@whiskeysockets/baileys");
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys");
 const { Boom } = require("@hapi/boom");
 const pino = require("pino");
 
 async function startBot(askChatbot) {
     const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
+    const { version, isLatest } = await fetchLatestBaileysVersion();
     const usePairingCode = process.env.USE_PAIRING_CODE === "true";
 
+    console.log(`Using WA v${version.join('.')}, isLatest: ${isLatest}`);
+
     const sock = makeWASocket({
+        version,
         auth: state,
         printQRInTerminal: !usePairingCode,
         logger: pino({ level: "silent" }),
-        browser: Browsers.macOS('Desktop'),
+        browser: ["Ubuntu", "Chrome", "20.0.04"],
         syncFullHistory: false
     });
 
