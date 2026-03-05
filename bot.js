@@ -61,11 +61,12 @@ async function startBot(askChatbot) {
 
     sock.ev.on("messages.upsert", async ({ messages }) => {
         const msg = messages[0];
-        if (!msg.message || msg.key.fromMe) return;
+        if (!msg.message) return;
 
         const senderNumber = msg.key.remoteJid;
+        const isFromMe = msg.key.fromMe;
         const isGroup = senderNumber.endsWith('@g.us');
-        const author = isGroup ? (msg.key.participant || senderNumber) : senderNumber;
+        const author = isFromMe ? "ME" : (isGroup ? (msg.key.participant || senderNumber) : senderNumber);
         const source = isGroup ? "GROUP" : "PRIVATE";
 
         // Better text extraction from various message types
@@ -77,7 +78,7 @@ async function startBot(askChatbot) {
 
         if (!text) return; // Ignore messages without text
 
-        console.log(`📩 [${source}] From: ${author.split('@')[0]} | Content: ${text}`);
+        console.log(`📩 [${source}] From: ${author === "ME" ? "ME" : author.split('@')[0]} | Content: ${text}`);
 
         const prefixe = process.env.PREFIXE || "!";
         const isCommand = text.trim().startsWith(prefixe);
@@ -119,8 +120,8 @@ async function startBot(askChatbot) {
             }
         }
 
-        // Only proceed to AI if it was NOT a recognized command
-        if (commandFound) return;
+        // Only proceed to AI if it was NOT a recognized command AND NOT from me
+        if (commandFound || isFromMe) return;
 
         // Check if we should respond with AI
         let shouldRespond = false;
