@@ -65,7 +65,11 @@ async function startBot(askChatbot) {
 
         const senderNumber = msg.key.remoteJid;
         const isGroup = senderNumber.endsWith('@g.us');
+        const author = isGroup ? (msg.key.participant || senderNumber) : senderNumber;
+        const source = isGroup ? "GROUP" : "PRIVATE";
         let text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
+
+        console.log(`\n📩 [${source}] From: ${author.split('@')[0]} | Content: ${text}`);
 
         const prefixe = process.env.PREFIXE || "!";
         const isCommand = text.startsWith(prefixe);
