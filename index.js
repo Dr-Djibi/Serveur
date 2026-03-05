@@ -1,5 +1,7 @@
+require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
+const { startBot } = require("./bot");
 const app = express();
 
 const waiters = new Map();
@@ -18,10 +20,7 @@ app.get("/incoming", (req, res) => {
   res.json({ status: 200 });
 });
 
-app.get("/chatbot", async (req, res) => {
-  const { user_id, text } = req.query;
-  if (!user_id || !text) return res.json({ status: 400 });
-
+async function askChatbot(user_id, text) {
   let queue = waiters.get(user_id);
   if (!queue) {
     queue = [];
@@ -29,49 +28,62 @@ app.get("/chatbot", async (req, res) => {
   }
 
   let resolveFunc;
-  let resSent = false;
 
   const responsePromise = new Promise(resolve => {
     resolveFunc = resolve;
     queue.push(resolve);
 
     setTimeout(() => {
-      const idx = queue.indexOf(resolveFunc);
-      if (idx !== -1) queue.splice(idx, 1);
-      if (queue.length === 0) waiters.delete(user_id);
-      if (!resSent) {
-        resSent = true;
-        res.json({ text: null, timeout: true });
-      }
+      resolve(null); // Timeout resolves to null
     }, 15000);
   });
 
   try {
     await axios.get("https://c1877.webapi.ai/cmc/user_message", {
-      params: { auth_token: "otznwxdd", user_id, text }
+      params: { auth_token: process.env.AUTH_TOKEN, user_id, text }
     });
 
     const reply = await responsePromise;
-    if (!resSent) {
-      resSent = true;
-      res.json({ text: reply });
-    }
+    
+    // Cleanup queue
+    const idx = queue.indexOf(resolveFunc);
+    if (idx !== -1) queue.splice(idx, 1);
+    if (queue.length === 0) waiters.delete(user_id);
 
+    if (reply !== null) {
+      return { text: reply };
+    } else {
+      return { text: null, timeout: true };
+    }
   } catch (err) {
     const idx = queue.indexOf(resolveFunc);
     if (idx !== -1) queue.splice(idx, 1);
     if (queue.length === 0) waiters.delete(user_id);
-    if (!resSent) {
-      resSent = true;
-      res.json({ status: 500 });
-    }
+    return { status: 500, error: err.message };
   }
+}
+
+app.get("/chatbot", async (req, res) => {
+  const { user_id, text } = req.query;
+  if (!user_id || !text) return res.json({ status: 400 });
+
+  const result = await askChatbot(user_id, text);
+  
+  if (result.status === 500) {
+     return res.json({ status: 500 });
+  }
+  
+  res.json(result);
 });
 
 app.get("/", (_, res) => res.json({ status: "API online" }));
 
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => console.log("API online on port " + PORT));
+app.listen(PORT, () => {
+    console.log("API online on port " + PORT);
+    // Start the WhatsApp bot after server starts
+    startBot(askChatbot).catch(err => console.error("Error starting bot:", err));
+});
 
 setInterval(() => {
   console.log("Ping! Server alive at " + new Date().toLocaleTimeString());
