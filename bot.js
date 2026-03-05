@@ -38,6 +38,8 @@ async function startBot(askChatbot) {
         }, 3000);
     }
 
+    let chatbotMode = "on"; // Global status: on, off, pm, gc
+
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === "close") {
@@ -50,6 +52,8 @@ async function startBot(askChatbot) {
             }
         } else if (connection === "open") {
             console.log("WhatsApp bot is connected and ready to receive messages!");
+            const botNumber = sock.user.id.split(':')[0] + '@s.whatsapp.net';
+            await sock.sendMessage(botNumber, { text: `✅ *${process.env.NOM_BOT || 'Menma'}* est en ligne !\n\n_Auteur: Dr djibi_` });
         }
     });
 
@@ -60,34 +64,63 @@ async function startBot(askChatbot) {
         if (!msg.message || msg.key.fromMe) return;
 
         const senderNumber = msg.key.remoteJid;
+        const isGroup = senderNumber.endsWith('@g.us');
         let text = msg.message.conversation || msg.message.extendedTextMessage?.text || "";
 
-        const prefixe = process.env.PREFIXE;
-        if (prefixe && text.startsWith(prefixe)) {
-            text = text.slice(prefixe.length).trim();
-        } else if (prefixe) {
-            // Ignore messages that don't start with prefix if a prefix is configured
-            return;
+        const prefixe = process.env.PREFIXE || "!";
+        const isCommand = text.startsWith(prefixe);
+
+        if (isCommand) {
+            const args = text.slice(prefixe.length).trim().split(/ +/);
+            const command = args.shift().toLowerCase();
+
+            if (command === "ping") {
+                const start = Date.now();
+                await sock.sendMessage(senderNumber, { text: "Calcul de la latence..." }, { quoted: msg });
+                const end = Date.now();
+                return await sock.sendMessage(senderNumber, { text: `🏓 Pong ! Latence : *${end - start}ms*` }, { quoted: msg });
+            }
+
+            if (command === "menu") {
+                const menuText = `🌟 *MENU ${process.env.NOM_BOT || 'Menma'}* 🌟\n\n` +
+                    `- *${prefixe}ping* : Vérifie la latence.\n` +
+                    `- *${prefixe}chatbot on* : Active l'IA partout.\n` +
+                    `- *${prefixe}chatbot off* : Désactive l'IA partout.\n` +
+                    `- *${prefixe}chatbot pm* : IA en privé uniquement.\n` +
+                    `- *${prefixe}chatbot gc* : IA en groupes uniquement.\n\n` +
+                    `_Current Mode: ${chatbotMode.toUpperCase()}_`;
+                return await sock.sendMessage(senderNumber, { text: menuText }, { quoted: msg });
+            }
+
+            if (command === "chatbot") {
+                const sub = args[0]?.toLowerCase();
+                if (["on", "off", "pm", "gc"].includes(sub)) {
+                    chatbotMode = sub;
+                    return await sock.sendMessage(senderNumber, { text: `✅ Chatbot configuré sur : *${sub.toUpperCase()}*` }, { quoted: msg });
+                }
+                return await sock.sendMessage(senderNumber, { text: `Usage: ${prefixe}chatbot [on|off|pm|gc]` }, { quoted: msg });
+            }
         }
 
-        if (text) {
-            console.log(`Received message from ${senderNumber}: ${text}`);
+        // Check if we should respond with AI
+        let shouldRespond = false;
+        if (chatbotMode === "on") shouldRespond = true;
+        else if (chatbotMode === "pm" && !isGroup) shouldRespond = true;
+        else if (chatbotMode === "gc" && isGroup) shouldRespond = true;
+
+        if (shouldRespond && text) {
+            console.log(`Sending to AI from ${senderNumber}: ${text}`);
 
             try {
-                // Remove the @s.whatsapp.net for the webapi logic if needed, or keep it.
-                // Assuming the webapi uses the full jid as user_id to ensure uniqueness.
                 const response = await askChatbot(senderNumber, text);
 
                 if (response && response.text) {
                     await sock.sendMessage(senderNumber, { text: response.text }, { quoted: msg });
                 } else if (response && response.timeout) {
                     await sock.sendMessage(senderNumber, { text: "Délai d'attente dépassé ou aucune réponse de l'API." }, { quoted: msg });
-                } else {
-                    await sock.sendMessage(senderNumber, { text: "Erreur lors du traitement de votre message." }, { quoted: msg });
                 }
             } catch (error) {
                 console.error("Error processing message:", error);
-                await sock.sendMessage(senderNumber, { text: "Une erreur interne s'est produite." }, { quoted: msg });
             }
         }
     });
