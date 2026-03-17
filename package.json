@@ -1,0 +1,15 @@
+{
+  "name": "avatar-djibi",
+  "version": "1.0.0",
+  "description": "Avatar pour me remplacer",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Ainz",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.8.4",
+    "express": "^5.1.0"
+  }
+}
