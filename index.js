@@ -15,6 +15,7 @@ app.get("/incoming", (req, res) => {
     if (queue.length === 0) waiters.delete(user_id);
   }
 
+  console.log(`[INCOMING] AI Response for ${user_id}: ${text.slice(0, 50)}...`);
   res.json({ status: 200 });
 });
 
